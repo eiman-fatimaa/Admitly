@@ -1,5 +1,5 @@
 """
-fastn_client.py - Outbound HTTP Client for Fastn Workflows
+fastn_client.py - Admitly outbound HTTP client for Fastn workflows
 Handles calling Workflow 1 (Applicant Nudge) and Workflow 2 (BI Export).
 """
 
@@ -15,13 +15,23 @@ FASTN_NUDGE_WEBHOOK = "https://webhooks.fastn.dev/prod/triggers/personal_537f9ca
 FASTN_BI_WEBHOOK = "https://webhooks.fastn.dev/prod/triggers/personal_537f9cad7efa339e78b6/webhooks/c37b085a-6e73-436b-9989-4fc0589cfe22"
 
 
-def dispatch_applicant_nudge(applicant_id, applicant_name, program_name, missing_items, deadline, channel="sms", destination=None):
+def _response_data(response):
+    """Return a useful success payload even when Fastn responds without JSON."""
+    if not response.text:
+        return {}
+    try:
+        return response.json()
+    except ValueError:
+        return {"response_text": response.text[:500]}
+
+
+def dispatch_applicant_nudge(applicant_id, applicant_name, program_name, missing_items, deadline, channel="gmail", destination=None):
     """
-    Calls Fastn Workflow 1 (applyiq-applicant-nudge-delivery).
-    Fastn routes the message to Twilio (SMS) or Slack based on the applicant's channel.
+    Calls Fastn Workflow 1. Fastn routes the message through Gmail or Slack
+    based on the applicant's selected channel.
     """
     if destination is None:
-        destination = {"phone_number": "+15559876543"}
+        destination = {"email_address": "applicant@example.edu"}
 
     payload = {
         "applicant_id": str(applicant_id),
@@ -43,7 +53,7 @@ def dispatch_applicant_nudge(applicant_id, applicant_name, program_name, missing
         )
         response.raise_for_status()
         logger.info(f"Fastn nudge dispatched successfully. Status: {response.status_code}")
-        return {"success": True, "status_code": response.status_code, "data": response.json() if response.text else {}}
+        return {"success": True, "status_code": response.status_code, "data": _response_data(response)}
     except requests.exceptions.RequestException as e:
         logger.error(f"Failed to dispatch Fastn nudge: {e}")
         return {"success": False, "error": str(e)}
@@ -51,7 +61,7 @@ def dispatch_applicant_nudge(applicant_id, applicant_name, program_name, missing
 
 def export_bi_summary(spreadsheet_id, institution_id="inst_nust_01", programs_summary=None, sheet_range="Summary!A1"):
     """
-    Calls Fastn Workflow 2 (applyiq-institution-bi-export).
+    Calls Fastn Workflow 2.
     Fastn appends the aggregate applicant progress metrics into the institution's Google Sheet.
     """
     if programs_summary is None:
@@ -74,7 +84,7 @@ def export_bi_summary(spreadsheet_id, institution_id="inst_nust_01", programs_su
         )
         response.raise_for_status()
         logger.info(f"Fastn BI export dispatched successfully. Status: {response.status_code}")
-        return {"success": True, "status_code": response.status_code, "data": response.json() if response.text else {}}
+        return {"success": True, "status_code": response.status_code, "data": _response_data(response)}
     except requests.exceptions.RequestException as e:
         logger.error(f"Failed to dispatch Fastn BI export: {e}")
         return {"success": False, "error": str(e)}

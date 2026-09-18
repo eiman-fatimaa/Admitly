@@ -1,5 +1,5 @@
 """
-ai_engine.py - ApplyIQ AI Extraction & Evidence Matching Engine
+ai_engine.py - Admitly AI Extraction & Evidence Matching Engine
 Powered by Claude (Anthropic API) + BeautifulSoup.
 """
 
@@ -24,7 +24,7 @@ def extract_requirements_from_url(url):
     """
     logger.info(f"Fetching requirements page: {url}")
     try:
-        resp = requests.get(url, timeout=10, headers={"User-Agent": "ApplyIQ-RequirementsBot/1.0"})
+        resp = requests.get(url, timeout=10, headers={"User-Agent": "Admitly-RequirementsBot/1.0"})
         soup = BeautifulSoup(resp.text, "html.parser")
 
         # Strip scripts, styles, and navigational elements

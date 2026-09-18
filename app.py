@@ -1,16 +1,22 @@
 """
-app.py - ApplyIQ Flask Web Application
+app.py - Admitly Flask Web Application
 Runs the Admin Dashboard, Applicant Portal, and integrates Fastn workflows & widgets.
 """
 
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dotenv import load_dotenv
 from flask import Flask, render_template_string, request, redirect, url_for, flash, jsonify
 import models
 import ai_engine
 import fastn_client
 
+load_dotenv()
+
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "applyiq-hackathon-2026-secret")
+app.secret_key = os.environ.get("SECRET_KEY", "admitly-hackathon-2026-secret")
+SLACK_ALERT_CHANNEL = os.environ.get("ADMITLY_SLACK_CHANNEL", "")
+SPREADSHEET_ID = os.environ.get("ADMITLY_SPREADSHEET_ID", "")
 
 # Fastn Embed Widget IDs
 WIDGET_APPLICANT_NOTIFICATIONS = "wgt_d2d615ad90d2"
@@ -27,7 +33,7 @@ BASE_HEAD = """
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{ title }} - ApplyIQ for Institutions</title>
+  <title>{{ title }} - Admitly for Institutions</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -39,7 +45,7 @@ NAV_BAR = """
     <div class="flex justify-between h-16">
       <div class="flex items-center space-x-3">
         <i class="fa-solid fa-graduation-cap text-2xl text-indigo-300"></i>
-        <span class="font-bold text-xl tracking-tight">ApplyIQ</span>
+        <span class="font-bold text-xl tracking-tight">Admitly</span>
         <span class="bg-indigo-800 text-indigo-200 text-xs px-2 py-0.5 rounded font-mono">Institution Portal</span>
       </div>
       <div class="flex items-center space-x-4">
@@ -249,9 +255,9 @@ def admin_program_board(program_id):
                     <div class="text-xs text-slate-500 font-mono">{{ row.applicant.email }}</div>
                   </td>
                   <td class="p-4">
-                    <span class="inline-flex items-center text-xs px-2.5 py-1 rounded font-medium {% if row.applicant.channel == 'sms' %}bg-emerald-50 text-emerald-700{% else %}bg-blue-50 text-blue-700{% endif %}">
-                      <i class="fa-solid {% if row.applicant.channel == 'sms' %}fa-comment-sms{% else %}fa-hashtag{% endif %} mr-1.5"></i>
-                      {{ row.applicant.channel|upper }}
+                    <span class="inline-flex items-center text-xs px-2.5 py-1 rounded font-medium bg-emerald-50 text-emerald-700">
+                      <i class="fa-solid fa-share-nodes mr-1.5"></i>
+                      GMAIL + SLACK
                     </span>
                   </td>
                   {% for s in row.statuses %}
@@ -306,17 +312,7 @@ def admin_program_board(program_id):
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Email</label>
                 <input type="email" name="email" required placeholder="student@example.edu" class="w-full text-sm px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
               </div>
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Notification Channel</label>
-                <select name="channel" class="w-full text-sm px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
-                  <option value="sms">Twilio SMS</option>
-                  <option value="slack">Slack Workspace</option>
-                </select>
-              </div>
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Destination (Phone or Channel)</label>
-                <input type="text" name="destination" required value="+15559876543" class="w-full text-sm px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
-              </div>
+              <p class="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg p-3">Urgent alerts will be emailed to this applicant and posted to the institution's configured Slack alert channel.</p>
               <div class="flex justify-end space-x-2 pt-3">
                 <button type="button" onclick="document.getElementById('add-app-modal').classList.add('hidden')" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
                 <button type="submit" class="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg">Add Applicant</button>
@@ -336,8 +332,8 @@ def admin_program_board(program_id):
 def admin_add_applicant(program_id):
     name = request.form.get("name")
     email = request.form.get("email")
-    channel = request.form.get("channel", "sms")
-    destination = request.form.get("destination", "+15559876543")
+    channel = "gmail"
+    destination = email
 
     models.add_applicant(program_id, name, email, channel, destination)
     flash(f"Added applicant {name}. Checklist instantiated with 'Missing' status.", "success")
@@ -346,24 +342,50 @@ def admin_add_applicant(program_id):
 
 @app.route("/admin/programs/<int:program_id>/nudge-urgent", methods=["POST"])
 def admin_dispatch_urgent_nudges(program_id):
-    """Scans for missing requirements and calls Fastn Workflow 1"""
-    urgent_applicants = models.get_urgent_gaps()
-    dispatched_count = 0
+    """Fan out urgent updates to Gmail, Slack, and the Fastn BI export."""
+    urgent_applicants = models.get_urgent_gaps(program_id=program_id)
+    notification_jobs = []
 
     for item in urgent_applicants:
-        res = fastn_client.dispatch_applicant_nudge(
-            applicant_id=item["applicant_id"],
-            applicant_name=item["applicant_name"],
-            program_name=item["program_name"],
-            missing_items=item["missing_items"],
-            deadline=item["deadline"],
-            channel=item["channel"],
-            destination=item["destination"]
-        )
-        if res.get("success"):
-            dispatched_count += 1
+        common = {
+            "applicant_id": item["applicant_id"],
+            "applicant_name": item["applicant_name"],
+            "program_name": item["program_name"],
+            "missing_items": item["missing_items"],
+            "deadline": item["deadline"],
+        }
+        notification_jobs.append({**common, "channel": "gmail", "destination": {"email_address": item["email"]}})
+        if SLACK_ALERT_CHANNEL:
+            notification_jobs.append({**common, "channel": "slack", "destination": {"slack_channel": SLACK_ALERT_CHANNEL}})
 
-    flash(f"Fastn Workflow 1 Triggered: Dispatched missing requirement notifications to {dispatched_count} applicant(s) via Twilio SMS / Slack!", "success")
+    results = []
+    with ThreadPoolExecutor(max_workers=max(1, len(notification_jobs) + 1)) as executor:
+        futures = [executor.submit(fastn_client.dispatch_applicant_nudge, **job) for job in notification_jobs]
+        if SPREADSHEET_ID:
+            futures.append(executor.submit(
+                fastn_client.export_bi_summary,
+                spreadsheet_id=SPREADSHEET_ID,
+                institution_id="inst_nust_01",
+                programs_summary=models.get_bi_summary(),
+            ))
+        for future in as_completed(futures):
+            results.append(future.result())
+
+    successful_notifications = sum(1 for result in results if result.get("success"))
+    expected_notifications = len(notification_jobs)
+    configuration_gaps = []
+    if not SLACK_ALERT_CHANNEL:
+        configuration_gaps.append("ADMITLY_SLACK_CHANNEL")
+    if not SPREADSHEET_ID:
+        configuration_gaps.append("ADMITLY_SPREADSHEET_ID")
+
+    if configuration_gaps:
+        flash("Gmail dispatch attempted. Add " + " and ".join(configuration_gaps) + " to .env to include Slack and Google Sheets in this action.", "error")
+    elif successful_notifications == expected_notifications + 1:
+        flash(f"Fastn fan-out complete: Gmail and Slack sent for {len(urgent_applicants)} applicant(s), and Google Sheets was updated.", "success")
+    else:
+        failed = next((result.get("error") for result in results if not result.get("success")), "Unknown Fastn error")
+        flash(f"Fastn fan-out only partially completed ({successful_notifications}/{expected_notifications + 1} requests succeeded): {failed}", "error")
     return redirect(f"/admin/programs/{program_id}")
 
 
@@ -442,7 +464,7 @@ def admin_reporting():
             <!-- EXPORT ACTION FORM -->
             <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
               <h3 class="font-bold text-base text-slate-900 mb-2">Export to Google Sheets via Fastn</h3>
-              <p class="text-xs text-slate-500 mb-4">Fastn Workflow 2 (`applyiq-institution-bi-export`) runs on an automated hourly cron schedule, or you can trigger an on-demand sync now.</p>
+              <p class="text-xs text-slate-500 mb-4">The Fastn BI workflow runs on an automated hourly cron schedule, or you can trigger an on-demand sync now.</p>
 
               <form action="/admin/reporting/export" method="POST" class="flex flex-col sm:flex-row gap-3">
                 <input type="text" name="spreadsheet_id" required value="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms" placeholder="Google Spreadsheet ID" class="flex-1 text-sm px-3.5 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
@@ -532,7 +554,7 @@ def applicant_portal(token):
       <header class="bg-white border-b border-slate-200">
         <div class="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
           <div class="flex items-center space-x-2">
-            <span class="font-bold text-lg text-indigo-900">ApplyIQ</span>
+            <span class="font-bold text-lg text-indigo-900">Admitly</span>
             <span class="text-xs text-slate-400">/ Applicant Status Portal</span>
           </div>
           <a href="/applicant/""" + token + """/notifications" class="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-lg font-medium">
@@ -669,28 +691,12 @@ def applicant_upload_evidence(token):
     return redirect(f"/applicant/{token}")
 
 
-@app.route("/applicant/<token>/notifications", methods=["GET", "POST"])
+@app.route("/applicant/<token>/notifications", methods=["GET"])
 def applicant_notifications(token):
     """Screen 5: Fastn Notification Preference Hub"""
     data = models.get_applicant_portal_data(token)
     if not data:
         return "Not found", 404
-
-    if request.method == "POST":
-        channel = request.form.get("channel", "sms")
-        destination = request.form.get("destination", "+15559876543")
-
-        conn = models.get_db()
-        conn.execute("""
-            UPDATE applicants
-            SET channel = ?, destination = ?
-            WHERE invite_token = ?
-        """, (channel, destination, token))
-        conn.commit()
-        conn.close()
-
-        flash("Notification channel preferences updated successfully!", "success")
-        return redirect(f"/applicant/{token}/notifications")
 
     html = """
     <!DOCTYPE html>
@@ -708,8 +714,8 @@ def applicant_notifications(token):
       <main class="max-w-3xl mx-auto px-4 py-8">
 
         <div class="mb-6">
-          <h1 class="text-2xl font-bold text-slate-900">Notification Preferences</h1>
-          <p class="text-sm text-slate-500">Choose how ApplyIQ alerts you if requirements are missing as deadlines approach.</p>
+          <h1 class="text-2xl font-bold text-slate-900">Notification Delivery</h1>
+          <p class="text-sm text-slate-500">Admitly sends applicant reminders by Gmail and posts an alert to the institution's Slack channel.</p>
         </div>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -724,25 +730,13 @@ def applicant_notifications(token):
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
 
-          <!-- CHANNEL PREFERENCE FORM -->
+          <!-- DELIVERY SUMMARY -->
           <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-            <h3 class="font-bold text-base text-slate-900 mb-3">Choose Your Channel</h3>
-            <form action="/applicant/""" + token + """/notifications" method="POST" class="space-y-4">
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Channel</label>
-                <select name="channel" class="w-full text-sm px-3.5 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
-                  <option value="sms" {% if data.applicant.channel == 'sms' %}selected{% endif %}>Twilio SMS Text Message</option>
-                  <option value="slack" {% if data.applicant.channel == 'slack' %}selected{% endif %}>Slack Channel / Direct Message</option>
-                </select>
-              </div>
-              <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Phone Number or Slack Channel</label>
-                <input type="text" name="destination" value="{{ data.applicant.destination }}" required class="w-full text-sm px-3.5 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
-              </div>
-              <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm py-2 rounded-lg">
-                Save Preferences
-              </button>
-            </form>
+            <h3 class="font-bold text-base text-slate-900 mb-3">Your Alert Delivery</h3>
+            <div class="space-y-3 text-sm">
+              <div class="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-emerald-800"><i class="fa-solid fa-envelope mr-2"></i>Gmail reminder: <span class="font-semibold">{{ data.applicant.email }}</span></div>
+              <div class="rounded-lg bg-indigo-50 border border-indigo-200 p-3 text-indigo-800"><i class="fa-brands fa-slack mr-2"></i>Institution staff are notified in Slack.</div>
+            </div>
           </div>
 
           <!-- FASTN EMBEDDED CONNECTOR WIDGET -->
@@ -756,9 +750,9 @@ def applicant_notifications(token):
                 Fastn manages your communication destination securely. You can connect or disconnect your account anytime.
               </p>
               <div class="space-y-2">
-                <a href="https://app.fastn.dev/connect/3d271a90-a3c8-468f-8825-0a942e373d71#t=emb_m-M_Ev2fB-yVBJaGB_05xLkomEVcfC3tktSM2H3bRV0" target="_blank" class="block w-full py-2 bg-slate-50 border border-slate-200 hover:bg-slate-100 rounded-lg text-xs font-medium text-slate-700 text-center">
-                  <i class="fa-solid fa-mobile-screen mr-1.5 text-emerald-600"></i>Connect Phone via Twilio
-                </a>
+                <div class="block w-full py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-medium text-emerald-800 text-center">
+                  <i class="fa-solid fa-envelope mr-1.5"></i>Gmail connected in Fastn
+                </div>
                 <a href="https://app.fastn.dev/connect/8de5d696-5289-4c9c-ade4-de918d019d06#t=emb_mUBsQ_MHHitcWmT7ZQpwdTnzmdzJuyXVFHgQS5zqJ5g" target="_blank" class="block w-full py-2 bg-slate-50 border border-slate-200 hover:bg-slate-100 rounded-lg text-xs font-medium text-slate-700 text-center">
                   <i class="fa-brands fa-slack mr-1.5 text-indigo-600"></i>Connect Slack Workspace
                 </a>
@@ -790,5 +784,5 @@ def seed_route():
 
 
 if __name__ == "__main__":
-    print("Starting ApplyIQ on http://localhost:5000 ...")
+    print("Starting Admitly on http://localhost:5000 ...")
     app.run(host="0.0.0.0", port=5000, debug=True)

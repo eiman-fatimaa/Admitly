@@ -1,5 +1,5 @@
 """
-models.py - ApplyIQ SQLite Database Schema & Data Access Layer
+models.py - Admitly SQLite Database Schema & Data Access Layer
 Single source of truth for programs, requirements, applicants, and checklist statuses.
 """
 
@@ -8,7 +8,7 @@ import os
 import uuid
 from datetime import datetime, timedelta
 
-DB_FILE = os.environ.get("APPLYIQ_DB", "applyiq.db")
+DB_FILE = os.environ.get("ADMITLY_DB", "admitly.db")
 
 
 def get_db(db_path=DB_FILE):
@@ -23,7 +23,7 @@ def get_db(db_path=DB_FILE):
 
 def init_db(db_path=DB_FILE):
     """
-    Initializes the SQLite tables for ApplyIQ.
+    Initializes the SQLite tables for Admitly.
     """
     conn = get_db(db_path)
     cursor = conn.cursor()
@@ -52,8 +52,8 @@ def init_db(db_path=DB_FILE):
         name TEXT NOT NULL,
         email TEXT NOT NULL UNIQUE,
         invite_token TEXT NOT NULL UNIQUE,
-        channel TEXT DEFAULT 'sms',
-        destination TEXT DEFAULT '+15559876543',
+        channel TEXT DEFAULT 'gmail',
+        destination TEXT DEFAULT '',
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE CASCADE
     );
@@ -100,7 +100,7 @@ def add_program(name, source_url, deadline, requirements_list, db_path=DB_FILE):
     return program_id
 
 
-def add_applicant(program_id, name, email, channel="sms", destination="+15559876543", db_path=DB_FILE):
+def add_applicant(program_id, name, email, channel="gmail", destination="", db_path=DB_FILE):
     """
     Registers an applicant for a program and generates initial 'Missing' status rows
     for all of that program's requirements.
@@ -242,7 +242,7 @@ def get_applicant_portal_data(invite_token, db_path=DB_FILE):
     }
 
 
-def get_urgent_gaps(db_path=DB_FILE):
+def get_urgent_gaps(program_id=None, db_path=DB_FILE):
     """
     Finds applicants who have one or more 'Missing' items for programs.
     Returns payloads formatted ready for Fastn Workflow 1 (nudge delivery).
@@ -251,7 +251,7 @@ def get_urgent_gaps(db_path=DB_FILE):
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT a.id as applicant_id, a.name as applicant_name, a.channel, a.destination,
+        SELECT a.id as applicant_id, a.name as applicant_name, a.email,
                p.name as program_name, p.deadline as program_deadline,
                GROUP_CONCAT(r.item, '||') as missing_items_str
         FROM applicants a
@@ -259,29 +259,20 @@ def get_urgent_gaps(db_path=DB_FILE):
         JOIN applicant_requirements ar ON ar.applicant_id = a.id
         JOIN requirements r ON r.id = ar.requirement_id
         WHERE ar.status = 'Missing'
+        AND (? IS NULL OR p.id = ?)
         GROUP BY a.id, p.id
-    """)
+    """, (program_id, program_id))
 
     results = []
     for row in cursor.fetchall():
         missing_list = row["missing_items_str"].split("||") if row["missing_items_str"] else []
-        channel = row["channel"] or "sms"
-        dest = {}
-        if channel == "sms":
-            dest = {"phone_number": row["destination"]}
-        elif channel == "slack":
-            dest = {"slack_channel": row["destination"]}
-        else:
-            dest = {"email_address": row["destination"]}
-
         results.append({
             "applicant_id": str(row["applicant_id"]),
             "applicant_name": row["applicant_name"],
+            "email": row["email"],
             "program_name": row["program_name"],
             "missing_items": missing_list,
             "deadline": row["program_deadline"],
-            "channel": channel,
-            "destination": dest
         })
 
     conn.close()
@@ -367,8 +358,8 @@ def seed_demo_data(db_path=DB_FILE):
         program_id=program_id,
         name="Jane Doe",
         email="jane.doe@example.edu",
-        channel="sms",
-        destination="+15559876543",
+        channel="gmail",
+        destination="jane.doe@example.edu",
         db_path=db_path
     )
     update_applicant_status_by_item("jane.doe@example.edu", "Research Proposal", "Received", "proposal_final_v2.pdf", db_path=db_path)
@@ -389,8 +380,8 @@ def seed_demo_data(db_path=DB_FILE):
         program_id=program_id,
         name="Alice Walker",
         email="alice.walker@example.edu",
-        channel="sms",
-        destination="+15551112233",
+        channel="gmail",
+        destination="alice.walker@example.edu",
         db_path=db_path
     )
 
