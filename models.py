@@ -100,6 +100,22 @@ def add_program(name, source_url, deadline, requirements_list, db_path=DB_FILE):
     return program_id
 
 
+def delete_program(program_id, db_path=DB_FILE):
+    """Delete a program and all related applicants and requirement statuses."""
+    conn = get_db(db_path)
+    cursor = conn.cursor()
+    cursor.execute("SELECT name FROM programs WHERE id = ?", (program_id,))
+    program = cursor.fetchone()
+    if not program:
+        conn.close()
+        return None
+
+    cursor.execute("DELETE FROM programs WHERE id = ?", (program_id,))
+    conn.commit()
+    conn.close()
+    return program["name"]
+
+
 def add_applicant(program_id, name, email, channel="gmail", destination="", db_path=DB_FILE):
     """
     Registers an applicant for a program and generates initial 'Missing' status rows

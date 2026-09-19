@@ -123,9 +123,14 @@ def admin_programs():
                 <div class="text-sm text-slate-600 font-medium">
                   <i class="fa-solid fa-users mr-1 text-slate-400"></i> {{{{ p.applicant_count }}}} Applicants
                 </div>
-                <a href="/admin/programs/{{{{ p.id }}}}" class="text-sm font-semibold text-indigo-600 hover:text-indigo-800 flex items-center">
-                  Open Board <i class="fa-solid fa-arrow-right ml-1 text-xs"></i>
-                </a>
+                <div class="flex items-center gap-3">
+                  <form action="/admin/programs/{{{{ p.id }}}}/delete" method="POST" onsubmit="return confirm('Delete this program and all of its applicants, requirements, and portal data? This cannot be undone.');">
+                    <button type="submit" class="text-xs font-semibold text-rose-600 hover:text-rose-800">Delete</button>
+                  </form>
+                  <a href="/admin/programs/{{{{ p.id }}}}" class="text-sm font-semibold text-indigo-600 hover:text-indigo-800 flex items-center">
+                    Open Board <i class="fa-solid fa-arrow-right ml-1 text-xs"></i>
+                  </a>
+                </div>
               </div>
             </div>
           {{% else %}}
@@ -147,7 +152,7 @@ def admin_programs():
               <h3 class="font-bold text-lg text-slate-900"><i class="fa-solid fa-robot text-indigo-600 mr-2"></i>Extract Requirements with AI</h3>
               <button onclick="document.getElementById('new-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600">&times;</button>
             </div>
-            <p class="text-xs text-slate-500 mb-4">Paste any scholarship or grant webpage URL. Claude AI will scrape the page and automatically build your program's checklist requirements.</p>
+            <p class="text-xs text-slate-500 mb-4">Paste any scholarship or grant webpage URL. Gemini will scrape the page and automatically build your program's checklist requirements.</p>
             <form action="/admin/programs/new" method="POST" class="space-y-4">
               <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Scholarship Page URL</label>
@@ -185,6 +190,17 @@ def admin_create_program_from_url():
 
     flash(f"AI successfully extracted {len(extracted.get('requirements', []))} checklist requirements for {extracted.get('program_name')}!", "success")
     return redirect(f"/admin/programs/{program_id}")
+
+
+@app.route("/admin/programs/<int:program_id>/delete", methods=["POST"])
+def admin_delete_program(program_id):
+    """Delete one institution program and its cascaded applicant portal data."""
+    program_name = models.delete_program(program_id)
+    if program_name:
+        flash(f"Deleted '{program_name}' and its related applicant portal data.", "success")
+    else:
+        flash("That program no longer exists.", "error")
+    return redirect("/admin/programs")
 
 
 @app.route("/admin/programs/<int:program_id>", methods=["GET"])
@@ -642,7 +658,7 @@ def applicant_portal(token):
             <i class="fa-solid fa-cloud-arrow-up text-indigo-600"></i>
             <h3 class="font-bold text-base text-slate-900">Submit Document Evidence</h3>
           </div>
-          <p class="text-xs text-slate-500 mb-4">Upload a document file or paste your confirmation text. Claude AI will match it to your missing checklist item and update your status in real time.</p>
+          <p class="text-xs text-slate-500 mb-4">Upload a document file or paste your confirmation text. Gemini will match it to your missing checklist item and update your status in real time.</p>
 
           <form action="/applicant/""" + token + """/upload" method="POST" class="space-y-3">
             <div>
