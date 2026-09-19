@@ -25,7 +25,22 @@ WIDGET_INSTITUTION_BI_EXPORT = "wgt_aabbd2eabb93"
 # Initialize DB on startup
 models.init_db()
 
+# -------------------------------------------------------------
+# ADMIN AUTHENTICATION GUARD
+# -------------------------------------------------------------
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
 
+@app.before_request
+def require_admin_auth():
+    # Only protect routes starting with /admin
+    if request.path.startswith("/admin"):
+        auth = request.authorization
+        if not auth or auth.password != ADMIN_PASSWORD:
+            return (
+                "Admin Authentication Required",
+                401,
+                {"WWW-Authenticate": 'Basic realm="Admitly Admin"'}
+            )
 # -------------------------------------------------------------
 # BASE HTML STYLING (Clean modern Tailwind CSS via CDN)
 # -------------------------------------------------------------
