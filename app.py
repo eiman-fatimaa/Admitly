@@ -4,6 +4,7 @@ Runs the Admin Dashboard, Applicant Portal, and integrates Fastn workflows & wid
 """
 
 import os
+import hmac
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
 from flask import Flask, render_template_string, request, redirect, url_for, flash, jsonify
@@ -21,6 +22,7 @@ SPREADSHEET_ID = os.environ.get("ADMITLY_SPREADSHEET_ID", "")
 # Optional explicit public URL (useful for custom domains). On Render, the
 # platform-provided hostname is used automatically when this is not set.
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL", "").rstrip("/")
+DRIVE_SYNC_CALLBACK_SECRET = os.environ.get("DRIVE_SYNC_CALLBACK_SECRET", "")
 
 # Fastn Embed Widget IDs
 WIDGET_APPLICANT_NOTIFICATIONS = "wgt_d2d615ad90d2"
@@ -715,6 +717,11 @@ def applicant_portal(token):
                         <i class="fa-solid fa-file-circle-check mr-1"></i>{{ item.last_evidence_snippet }}
                       </div>
                     {% endif %}
+                    {% if item.drive_file_url %}
+                      <a href="{{ item.drive_file_url }}" target="_blank" rel="noopener noreferrer" class="block mt-2 text-xs font-semibold text-indigo-600 hover:text-indigo-800">
+                        <i class="fa-brands fa-google-drive mr-1"></i>Open verified Google Drive file
+                      </a>
+                    {% endif %}
                   </div>
                 </div>
                 <div>
@@ -727,6 +734,25 @@ def applicant_portal(token):
               </div>
             {% endfor %}
           </div>
+        </div>
+
+        <!-- GOOGLE DRIVE DISCOVERY (optional; manual upload remains available) -->
+        <div class="bg-gradient-to-br from-blue-50 to-white rounded-2xl border border-blue-200 shadow-sm p-6 mb-6">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <div class="flex items-center space-x-2 mb-2">
+                <span class="p-2 bg-white text-blue-600 rounded-lg border border-blue-100"><i class="fa-brands fa-google-drive text-sm"></i></span>
+                <h3 class="font-bold text-base text-slate-900">Find documents in Google Drive</h3>
+              </div>
+              <p class="text-xs text-slate-600 max-w-xl">Optional: securely connect your Drive through Fastn. We scan file names and links for your missing checklist items; unclear files are never submitted automatically.</p>
+            </div>
+            <form action="/applicant/""" + token + """/drive-sync" method="POST">
+              <button type="submit" class="whitespace-nowrap px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg">
+                <i class="fa-brands fa-google-drive mr-1.5"></i>Connect & Scan Drive
+              </button>
+            </form>
+          </div>
+          <p class="mt-3 text-[11px] text-slate-500"><i class="fa-solid fa-shield-halved mr-1"></i>Google authorization is handled by Fastn; Admitly does not store your Google credentials.</p>
         </div>
 
         <!-- DOCUMENT UPLOAD (Screen 4 Intake) -->
@@ -803,6 +829,75 @@ def applicant_upload_evidence(token):
         flash(f"File '{filename}' uploaded successfully, but could not be matched confidently. It was not assigned to a requirement and is flagged for staff review.", "error")
 
     return redirect(f"/applicant/{token}")
+
+
+def _apply_drive_matches(applicant_id, drive_files):
+    """Match validated Drive metadata and persist only high-confidence evidence."""
+    applicant = models.get_applicant_by_id(applicant_id)
+    if not applicant:
+        return []
+    matches = ai_engine.match_drive_files_to_requirements(drive_files, applicant["checklist"])
+    return [
+        match for match in matches
+        if models.record_drive_match(
+            applicant_id,
+            match["requirement"],
+            match["file_name"],
+            match["file_url"],
+        )
+    ]
+
+
+@app.route("/applicant/<token>/drive-sync", methods=["POST"])
+def applicant_drive_sync(token):
+    """Start the applicant-scoped Fastn Google Drive discovery workflow."""
+    data = models.get_applicant_portal_data(token)
+    if not data:
+        return "Not found", 404
+
+    callback_url = f"{_public_app_url()}{url_for('fastn_drive_sync_callback')}"
+    requirements = [
+        {"item": item["item"], "description": item["description"]}
+        for item in data["checklist"] if item["status"] != "Received"
+    ]
+    delivery = fastn_client.start_applicant_drive_sync(
+        applicant_id=data["applicant"]["id"],
+        applicant_email=data["applicant"]["email"],
+        requirements=requirements,
+        callback_url=callback_url,
+    )
+    if not delivery.get("success"):
+        flash(delivery.get("error", "Could not start Google Drive scan."), "error")
+    else:
+        # Support workflows that return file metadata synchronously, as well as
+        # the asynchronous callback contract below.
+        files = delivery.get("data", {}).get("files", [])
+        matches = _apply_drive_matches(data["applicant"]["id"], files) if isinstance(files, list) else []
+        if matches:
+            flash(f"Google Drive scan verified {len(matches)} document(s).", "success")
+        else:
+            flash("Google Drive connection started. Matching documents will appear after Fastn completes the scan.", "success")
+    return redirect(f"/applicant/{token}")
+
+
+@app.route("/api/fastn/drive-sync", methods=["POST"])
+def fastn_drive_sync_callback():
+    """Receive applicant-scoped Drive metadata from the Fastn workflow."""
+    supplied_secret = request.headers.get("X-Admitly-Drive-Sync-Secret", "")
+    if not DRIVE_SYNC_CALLBACK_SECRET or not hmac.compare_digest(supplied_secret, DRIVE_SYNC_CALLBACK_SECRET):
+        return jsonify({"error": "Unauthorized Drive sync callback"}), 401
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        applicant_id = int(payload.get("applicant_id"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "A valid applicant_id is required"}), 400
+    files = payload.get("files", [])
+    if not isinstance(files, list):
+        return jsonify({"error": "files must be a list"}), 400
+
+    matches = _apply_drive_matches(applicant_id, files)
+    return jsonify({"matched_count": len(matches), "matches": matches}), 200
 
 
 @app.route("/applicant/<token>/notifications", methods=["GET"])

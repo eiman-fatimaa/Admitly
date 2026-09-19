@@ -64,12 +64,19 @@ def init_db(db_path=DB_FILE):
         requirement_id INTEGER NOT NULL,
         status TEXT NOT NULL DEFAULT 'Missing', -- 'Missing', 'Pending', 'Received'
         last_evidence_snippet TEXT,
+        drive_file_url TEXT,
         updated_at TEXT NOT NULL DEFAULT (datetime('now')),
         FOREIGN KEY (applicant_id) REFERENCES applicants(id) ON DELETE CASCADE,
         FOREIGN KEY (requirement_id) REFERENCES requirements(id) ON DELETE CASCADE,
         UNIQUE (applicant_id, requirement_id)
     );
     """)
+
+    # SQLite does not apply new columns to an existing table through
+    # CREATE TABLE IF NOT EXISTS, so migrate local/demo databases safely.
+    columns = {row["name"] for row in cursor.execute("PRAGMA table_info(applicant_requirements)")}
+    if "drive_file_url" not in columns:
+        cursor.execute("ALTER TABLE applicant_requirements ADD COLUMN drive_file_url TEXT")
 
     conn.commit()
     conn.close()
@@ -177,6 +184,35 @@ def update_applicant_status_by_item(email, requirement_item_name, status, eviden
     return True
 
 
+def record_drive_match(applicant_id, requirement_item_name, file_name, file_url, db_path=DB_FILE):
+    """Record one high-confidence Drive match as applicant evidence."""
+    conn = get_db(db_path)
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE applicant_requirements
+        SET status = 'Received', last_evidence_snippet = ?, drive_file_url = ?, updated_at = datetime('now')
+        WHERE applicant_id = ?
+          AND requirement_id = (
+              SELECT id FROM requirements WHERE item = ?
+              AND program_id = (SELECT program_id FROM applicants WHERE id = ?)
+          )
+    """, (f"Google Drive: {file_name}", file_url, applicant_id, requirement_item_name, applicant_id))
+    updated = cursor.rowcount == 1
+    conn.commit()
+    conn.close()
+    return updated
+
+
+def get_applicant_by_id(applicant_id, db_path=DB_FILE):
+    """Return applicant and checklist data for a trusted Fastn callback."""
+    conn = get_db(db_path)
+    cursor = conn.cursor()
+    cursor.execute("SELECT invite_token FROM applicants WHERE id = ?", (applicant_id,))
+    applicant = cursor.fetchone()
+    conn.close()
+    return get_applicant_portal_data(applicant["invite_token"], db_path) if applicant else None
+
+
 def get_program_board(program_id, db_path=DB_FILE):
     """
     Returns data needed for the Admin Program Detail Matrix (Screen 2):
@@ -243,7 +279,8 @@ def get_applicant_portal_data(invite_token, db_path=DB_FILE):
     app_dict = dict(applicant)
 
     cursor.execute("""
-        SELECT r.id, r.item, r.description, r.deadline, ar.status, ar.last_evidence_snippet, ar.updated_at
+        SELECT r.id, r.item, r.description, r.deadline, ar.status, ar.last_evidence_snippet,
+               ar.drive_file_url, ar.updated_at
         FROM requirements r
         JOIN applicant_requirements ar ON ar.requirement_id = r.id
         WHERE ar.applicant_id = ?

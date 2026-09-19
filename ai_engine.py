@@ -182,3 +182,31 @@ Return ONLY JSON:
     except Exception as err:
         logger.error(f"Gemini evidence matching failed ({err}).")
         return keyword_match()
+
+
+def match_drive_files_to_requirements(drive_files, checklist_items):
+    """Return only high-confidence, one-to-one Drive filename matches."""
+    unmatched_requirements = [item for item in checklist_items if item.get("status") != "Received"]
+    matches = []
+    used_requirements = set()
+
+    for drive_file in drive_files:
+        result = match_evidence_to_requirement(
+            evidence_text=drive_file.get("description", ""),
+            filename=drive_file.get("name", ""),
+            requirements_list=unmatched_requirements,
+        )
+        requirement = result.get("matched_item")
+        if (
+            requirement
+            and requirement not in used_requirements
+            and result.get("status") == "Received"
+            and result.get("confidence", 0) >= 0.7
+        ):
+            matches.append({
+                "requirement": requirement,
+                "file_name": drive_file.get("name", "Google Drive file"),
+                "file_url": drive_file.get("webViewLink") or drive_file.get("link") or "",
+            })
+            used_requirements.add(requirement)
+    return matches
