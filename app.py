@@ -18,7 +18,8 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "admitly-hackathon-2026-secret")
 SLACK_ALERT_CHANNEL = os.environ.get("ADMITLY_SLACK_CHANNEL", "")
 SPREADSHEET_ID = os.environ.get("ADMITLY_SPREADSHEET_ID", "")
-# Set this in production so emailed invite links never point at an internal host.
+# Optional explicit public URL (useful for custom domains). On Render, the
+# platform-provided hostname is used automatically when this is not set.
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL", "").rstrip("/")
 
 # Fastn Embed Widget IDs
@@ -385,7 +386,7 @@ def admin_add_applicant(program_id):
     deadline = board["program"]["deadline"]
     requirements = [requirement["item"] for requirement in board["requirements"]]
     portal_path = url_for("applicant_portal", token=invite_token)
-    portal_url = f"{PUBLIC_APP_URL}{portal_path}" if PUBLIC_APP_URL else request.host_url.rstrip("/") + portal_path
+    portal_url = f"{_public_app_url()}{portal_path}"
 
     # Send the welcome message immediately through the Gmail Fastn workflow.
     delivery = fastn_client.dispatch_applicant_welcome(
@@ -407,6 +408,21 @@ def admin_add_applicant(program_id):
             "error",
         )
     return redirect(f"/admin/programs/{program_id}")
+
+
+def _public_app_url():
+    """Return the externally reachable app origin without hard-coding a domain."""
+    if PUBLIC_APP_URL:
+        return PUBLIC_APP_URL
+
+    # Render injects this hostname for web services. Its external endpoint is
+    # HTTPS, even though Flask may receive the proxied request over HTTP.
+    render_hostname = os.environ.get("RENDER_EXTERNAL_HOSTNAME", "").strip()
+    if render_hostname:
+        return f"https://{render_hostname}"
+
+    # Keep local and non-Render deployments working without extra setup.
+    return request.host_url.rstrip("/")
 
 
 @app.route("/admin/programs/<int:program_id>/nudge-urgent", methods=["POST"])
