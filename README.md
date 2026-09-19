@@ -107,7 +107,6 @@ The buyer is the office coordinating the program — a financial aid director, a
 |---|---|
 | **Live app** | https://admitly.onrender.com |
 | **Admin login** | Username: `admin` (any value works) · Password: `admin123` |
-| **Reset demo data** | https://admitly.onrender.com/seed — loads a sample fellowship program with three applicants |
 | **Demo video** | [Add Google Drive link here — sharing set to "anyone with the link"] |
 
 ## Screenshots
