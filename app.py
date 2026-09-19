@@ -7,6 +7,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
 from flask import Flask, render_template_string, request, redirect, url_for, flash, jsonify
+from werkzeug.utils import secure_filename
 import models
 import ai_engine
 import fastn_client
@@ -364,10 +365,38 @@ def admin_add_applicant(program_id):
     name = request.form.get("name")
     email = request.form.get("email")
     channel = "gmail"
-    destination = email
+    destination = {"email_address": email}
 
-    models.add_applicant(program_id, name, email, channel, destination)
-    flash(f"Added applicant {name}. Checklist instantiated with 'Missing' status.", "success")
+    # Create the applicant and their password-free personal checklist link.
+    result = models.add_applicant(program_id, name, email, channel, email)
+    invite_token = result["invite_token"]
+    applicant_id = result["applicant_id"]
+
+    board = models.get_program_board(program_id)
+    program_name = board["program"]["name"]
+    deadline = board["program"]["deadline"]
+    requirements = [requirement["item"] for requirement in board["requirements"]]
+    portal_url = request.host_url.rstrip("/") + url_for("applicant_portal", token=invite_token)
+
+    # Send the welcome message immediately through the Gmail Fastn workflow.
+    delivery = fastn_client.dispatch_applicant_nudge(
+        applicant_id=applicant_id,
+        applicant_name=name,
+        program_name=program_name,
+        missing_items=requirements,
+        deadline=f"{deadline}. Access your personal checklist portal here: {portal_url}",
+        channel=channel,
+        destination=destination,
+    )
+
+    if delivery.get("success"):
+        flash(f"Added applicant {name}! A welcome email with their portal link was sent to {email}.", "success")
+    else:
+        flash(
+            f"Added applicant {name}, but the welcome email could not be sent. "
+            f"Their portal link is ready: {portal_url}",
+            "error",
+        )
     return redirect(f"/admin/programs/{program_id}")
 
 
@@ -667,25 +696,25 @@ def applicant_portal(token):
           </div>
         </div>
 
-        <!-- EVIDENCE UPLOAD SIMULATOR (Screen 4 Intake) -->
+        <!-- DOCUMENT UPLOAD (Screen 4 Intake) -->
         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <div class="flex items-center space-x-2 mb-2">
             <i class="fa-solid fa-cloud-arrow-up text-indigo-600"></i>
             <h3 class="font-bold text-base text-slate-900">Submit Document Evidence</h3>
           </div>
-          <p class="text-xs text-slate-500 mb-4">Upload a document file or paste your confirmation text. Gemini will match it to your missing checklist item and update your status in real time.</p>
+          <p class="text-xs text-slate-500 mb-4">Upload a document and optionally add a note. Gemini will match it to your missing checklist item and update your status in real time.</p>
 
-          <form action="/applicant/""" + token + """/upload" method="POST" class="space-y-3">
+          <form action="/applicant/""" + token + """/upload" method="POST" enctype="multipart/form-data" class="space-y-4">
             <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Document File Name or Reference</label>
-              <input type="text" name="filename" required placeholder="official_transcript_verified.pdf" class="w-full text-sm px-3.5 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Select Document to Upload (.pdf, .png, .jpg, .docx)</label>
+              <input type="file" name="document_file" required accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" class="w-full text-sm px-3.5 py-2 border border-slate-300 rounded-lg bg-white file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer">
             </div>
             <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">Evidence Excerpt / Note</label>
-              <textarea name="evidence_text" rows="2" placeholder="Attached certified copy from University Registrar..." class="w-full text-sm px-3.5 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"></textarea>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Optional Note / Excerpt (helps AI match the right requirement)</label>
+              <textarea name="evidence_text" rows="2" placeholder="e.g. Attached official certified copy from the Registrar office..." class="w-full text-sm px-3.5 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"></textarea>
             </div>
             <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm py-2.5 rounded-lg flex items-center justify-center">
-              <i class="fa-solid fa-wand-magic-sparkles mr-2"></i>Match Evidence with AI
+              <i class="fa-solid fa-cloud-arrow-up mr-2"></i>Upload & Verify with AI
             </button>
           </form>
         </div>
@@ -699,12 +728,25 @@ def applicant_portal(token):
 
 @app.route("/applicant/<token>/upload", methods=["POST"])
 def applicant_upload_evidence(token):
-    """Processes uploaded evidence with AI Matcher and updates SQLite"""
+    """Stores an uploaded document, matches it with AI, and updates SQLite."""
     data = models.get_applicant_portal_data(token)
     if not data:
         return "Not found", 404
 
-    filename = request.form.get("filename", "")
+    uploaded_file = request.files.get("document_file")
+    if not uploaded_file or not uploaded_file.filename:
+        flash("Please select a file to upload.", "error")
+        return redirect(f"/applicant/{token}")
+
+    filename = secure_filename(uploaded_file.filename)
+    if not filename:
+        flash("That file name is not valid. Please choose another file.", "error")
+        return redirect(f"/applicant/{token}")
+
+    upload_dir = os.path.join(app.root_path, "uploads")
+    os.makedirs(upload_dir, exist_ok=True)
+    saved_path = os.path.join(upload_dir, f"{token[:6]}_{filename}")
+    uploaded_file.save(saved_path)
     evidence_text = request.form.get("evidence_text", "")
 
     # Run AI Evidence Matcher
@@ -720,11 +762,11 @@ def applicant_upload_evidence(token):
             email=data["applicant"]["email"],
             requirement_item_name=matched_item,
             status="Received",
-            evidence_snippet=match_result.get("snippet", filename)
+            evidence_snippet=f"Uploaded: {filename}"
         )
-        flash(f"AI Evidence Matcher confirmed '{filename}' matches requirement: '{matched_item}'! Status flipped to Received.", "success")
+        flash(f"File '{filename}' received! Matched requirement: '{matched_item}' (status updated to Received).", "success")
     else:
-        flash("AI could not match this evidence confidently. Flagged for manual review.", "error")
+        flash(f"File '{filename}' uploaded successfully, but could not be matched automatically. Flagged for staff review.", "error")
 
     return redirect(f"/applicant/{token}")
 
