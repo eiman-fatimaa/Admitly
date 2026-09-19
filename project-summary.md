@@ -54,10 +54,10 @@ rm -rf sources alert.py config.py extractor.py main.py notion_sync.py seed_notio
 ### Files to ADD to the repository (already generated in scratchpad):
 1. **`models.py`**: SQLite database models and query helpers (`programs`, `requirements`, `applicants`, `applicant_requirements`). Enforces relational foreign keys.
 2. **`fastn_client.py`**: Outbound HTTP client that dispatches JSON payloads to Fastn's live webhooks.
-3. **`ai_engine.py`**: Webpage scraper + Claude AI integration for URL checklist extraction and applicant evidence matching.
+3. **`ai_engine.py`**: Webpage scraper + Gemini AI integration for URL checklist extraction and applicant evidence matching.
 4. **`app.py`**: Complete Flask application rendering all 5 screens with modern Tailwind CSS and FontAwesome icons.
 5. **`requirements.txt`**: Minimal dependencies (`flask`, `requests`, `beautifulsoup4`).
-6. **`.env`**: Configuration for `SECRET_KEY` and optional `ANTHROPIC_API_KEY`.
+6. **`.env`**: Configuration for `SECRET_KEY` and optional `GEMINI_API_KEY`.
 7. **`README.md`**: Complete runbook and demo instructions.
 
 ---
@@ -66,7 +66,7 @@ rm -rf sources alert.py config.py extractor.py main.py notion_sync.py seed_notio
 
 1. **Screen 1: Programs List (`/admin/programs`)**
    - Displays all active scholarship programs, applicant counts, and deadlines.
-   - Includes "+ New Program" modal where pasting any scholarship URL prompts Claude to scrape requirements.
+   - Includes "+ New Program" modal where pasting any scholarship URL prompts Gemini to scrape requirements.
 2. **Screen 2: Program Detail / Matrix Board (`/admin/programs/<id>`)**
    - Core administrative board: rows of applicants vs. columns of requirements.
    - Live color-coded status pills: **Missing (Red)**, **Received (Green)**.

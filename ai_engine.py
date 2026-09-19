@@ -1,6 +1,6 @@
 """
 ai_engine.py - Admitly AI Extraction & Evidence Matching Engine
-Powered by Claude (Anthropic API) + BeautifulSoup.
+Powered by Gemini API + BeautifulSoup.
 """
 
 import os
@@ -9,17 +9,21 @@ import json
 import logging
 import requests
 from bs4 import BeautifulSoup
+from google import genai
+from google.genai import types
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ai_engine")
 
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
+GEMINI_CLIENT = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 
 def extract_requirements_from_url(url):
     """
     Step 1 of the customer journey:
-    Fetches the public requirements page, strips markup, and prompts Claude
+    Fetches the public requirements page, strips markup, and prompts Gemini
     to generate a structured JSON checklist of items and descriptions.
     """
     logger.info(f"Fetching requirements page: {url}")
@@ -38,8 +42,8 @@ def extract_requirements_from_url(url):
         logger.warning(f"Could not scrape live URL ({e}). Using sample text.")
         content_snippet = f"Requirements for Fellowship at {url}. Applicants must submit an Official Transcript, a Faculty Letter of Recommendation, and a Research Proposal by Oct 15, 2026."
 
-    if not ANTHROPIC_API_KEY:
-        logger.info("No ANTHROPIC_API_KEY set. Using deterministic fallback extraction.")
+    if not GEMINI_CLIENT:
+        logger.info("No GEMINI_API_KEY set. Using deterministic fallback extraction.")
         return {
             "program_name": "Mitacs Global Research Fellowship",
             "deadline": "2026-10-15",
@@ -50,7 +54,7 @@ def extract_requirements_from_url(url):
             ]
         }
 
-    # Call Claude Messages API
+    # Call Gemini with JSON-only output.
     prompt = f"""
 You are an admissions requirement parser. Read this scholarship/grant webpage text and extract:
 1. Program name
@@ -70,29 +74,18 @@ Webpage Content:
 {content_snippet}
 """
     try:
-        response = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": ANTHROPIC_API_KEY,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json"
-            },
-            json={
-                "model": "claude-3-haiku-20240307",
-                "max_tokens": 1024,
-                "messages": [{"role": "user", "content": prompt}]
-            },
-            timeout=15
+        response = GEMINI_CLIENT.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                max_output_tokens=1024,
+            ),
         )
-        data = response.json()
-        raw_text = data["content"][0]["text"].strip()
-        # Clean any accidental markdown codeblock formatting
-        if raw_text.startswith("```"):
-            raw_text = re.sub(r"^```(json)?\n", "", raw_text)
-            raw_text = re.sub(r"\n```$", "", raw_text)
+        raw_text = response.text.strip()
         return json.loads(raw_text)
     except Exception as err:
-        logger.error(f"Claude extraction failed ({err}). Falling back to structured default.")
+        logger.error(f"Gemini extraction failed ({err}). Falling back to structured default.")
         return {
             "program_name": "Global Research Award",
             "deadline": "2026-10-15",
@@ -111,7 +104,7 @@ def match_evidence_to_requirement(evidence_text, filename, requirements_list):
     """
     items = [r["item"] for r in requirements_list]
 
-    if not ANTHROPIC_API_KEY:
+    if not GEMINI_CLIENT:
         # Fast semantic heuristic fallback for hackathon demos
         combined = f"{filename} {evidence_text}".lower()
         for item in items:
@@ -143,30 +136,20 @@ Return ONLY JSON:
 }}
 """
     try:
-        response = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": ANTHROPIC_API_KEY,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json"
-            },
-            json={
-                "model": "claude-3-haiku-20240307",
-                "max_tokens": 256,
-                "messages": [{"role": "user", "content": prompt}]
-            },
-            timeout=10
+        response = GEMINI_CLIENT.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                max_output_tokens=256,
+            ),
         )
-        data = response.json()
-        raw_text = data["content"][0]["text"].strip()
-        if raw_text.startswith("```"):
-            raw_text = re.sub(r"^```(json)?\n", "", raw_text)
-            raw_text = re.sub(r"\n```$", "", raw_text)
+        raw_text = response.text.strip()
         result = json.loads(raw_text)
         result["snippet"] = filename or evidence_text[:60]
         return result
     except Exception as err:
-        logger.error(f"Evidence matching failed ({err}).")
+        logger.error(f"Gemini evidence matching failed ({err}).")
         return {
             "matched_item": items[0] if items else None,
             "status": "Received",
