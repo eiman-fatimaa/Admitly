@@ -36,8 +36,9 @@ ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
 
 @app.before_request
 def require_admin_auth():
-    # Only protect routes starting with /admin
-    if request.path.startswith("/admin"):
+    # Resetting demo data deletes all application records, so protect it with
+    # the same admin credentials as the management routes.
+    if request.path.startswith("/admin") or request.path == "/seed":
         auth = request.authorization
         if not auth or auth.password != ADMIN_PASSWORD:
             return (

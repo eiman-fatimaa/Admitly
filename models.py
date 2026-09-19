@@ -50,12 +50,13 @@ def init_db(db_path=DB_FILE):
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         program_id INTEGER NOT NULL,
         name TEXT NOT NULL,
-        email TEXT NOT NULL UNIQUE,
+        email TEXT NOT NULL,
         invite_token TEXT NOT NULL UNIQUE,
         channel TEXT DEFAULT 'gmail',
         destination TEXT DEFAULT '',
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE CASCADE
+        FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE CASCADE,
+        UNIQUE (program_id, email)
     );
 
     CREATE TABLE IF NOT EXISTS applicant_requirements (
@@ -73,6 +74,21 @@ def init_db(db_path=DB_FILE):
 
     conn.commit()
     conn.close()
+
+
+def reset_db(db_path=DB_FILE):
+    """Completely reset Admitly tables before recreating deterministic demo data."""
+    conn = get_db(db_path)
+    cursor = conn.cursor()
+    cursor.executescript("""
+        DROP TABLE IF EXISTS applicant_requirements;
+        DROP TABLE IF EXISTS applicants;
+        DROP TABLE IF EXISTS requirements;
+        DROP TABLE IF EXISTS programs;
+    """)
+    conn.commit()
+    conn.close()
+    init_db(db_path)
 
 
 def add_program(name, source_url, deadline, requirements_list, db_path=DB_FILE):
@@ -357,7 +373,7 @@ def seed_demo_data(db_path=DB_FILE):
     """
     Seeds one realistic Program (Mitacs Global Fellowship) with 3 requirements and 3 applicants.
     """
-    init_db(db_path)
+    reset_db(db_path)
 
     program_id = add_program(
         name="Mitacs Global Fellowship",
