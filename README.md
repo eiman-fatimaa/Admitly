@@ -5,6 +5,7 @@ A requirement-tracking and notification orchestration platform for any organizat
 
 Built for the Fastn Hackathon at NUST SEECS, September 18–19, 2026.
 
+**Live at: https://admitly.onrender.com/**
 ---
 
 ## The Problem
