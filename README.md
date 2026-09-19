@@ -1,4 +1,4 @@
-# Admitly
+<img width="1600" height="842" alt="image" src="https://github.com/user-attachments/assets/baf921ad-acdb-49d6-8af8-3fa8ab4cb424" /># Admitly
 <img width="1024" height="559" alt="image" src="https://github.com/user-attachments/assets/f00400cd-1e2f-4930-a6d5-d0f169df0953" />
 
 A requirement-tracking and notification orchestration platform for any organization that has to collect documents from a large group of people, on a deadline, without losing track of who's missing what.
@@ -99,7 +99,6 @@ The buyer is the office coordinating the program — a financial aid director, a
 
 - **Team name:** Rotten Figs
 - **Members:** Eiman Fatima, Tatheer Aima Naqvi
-- **Tracks:** Track 03 (Notification Delivery), Track 04 (Institution BI & Data Export)
 
 ## Live Demo
 
@@ -111,19 +110,21 @@ The buyer is the office coordinating the program — a financial aid director, a
 
 ## Screenshots
 
-*(Add at least three screenshots before submitting: the admin requirement matrix, the applicant portal, and the Fastn workflow run alongside its result in Slack, Gmail, or Sheets.)*
-
 **1. Admin requirement matrix**
 
-`[screenshot placeholder]`
+<img width="1746" height="745" alt="image" src="https://github.com/user-attachments/assets/392fa91b-d05d-492a-9ef4-fe0e22ad9a3b" />
 
 **2. Applicant portal**
 
-`[screenshot placeholder]`
+<img width="1600" height="968" alt="image" src="https://github.com/user-attachments/assets/c7f8ebf2-405f-42f1-98ba-c793a1740040" />
+<img width="1600" height="969" alt="image" src="https://github.com/user-attachments/assets/2c23fdf6-9cf4-4be1-b436-4c023769a06f" />
 
-**3. Fastn workflow execution and destination system**
+**3. Student - Auto Email notification + portal link**
+<img width="1600" height="966" alt="image" src="https://github.com/user-attachments/assets/85837607-3612-4d83-9d46-50905221fc1f" />
 
-`[screenshot placeholder]`
+**4. Slack Notification + Sheets Log**
+<img width="1600" height="842" alt="image" src="https://github.com/user-attachments/assets/9515bc35-df1e-483b-9891-ec2b20a4c0d6" />
+<img width="1357" height="575" alt="image" src="https://github.com/user-attachments/assets/d73a1561-eaa9-40b2-9943-fd255e3b7c0a" />
 
 ## Technical Notes
 
@@ -132,59 +133,6 @@ The buyer is the office coordinating the program — a financial aid director, a
 - Unique constraints on email and on (applicant, requirement) pairs prevent duplicate invites and conflicting status writes.
 - A manual "Retry Export" action covers cases where a Sheets sync fails partway through.
 - Admin routes are protected with HTTP Basic Auth via the `ADMIN_PASSWORD` environment variable.
-
-## Setup
-
-**Requirements:** Python 3.10+, pip, git
-
-```bash
-git clone https://github.com/eiman-fatimaa/Admitly.git
-cd Admitly
-
-python -m venv venv
-source venv/bin/activate      # Windows: venv\Scripts\activate
-
-pip install -r requirements.txt
-cp .env.example .env
-```
-
-Edit `.env`:
-
-```env
-SECRET_KEY=your-secret-key
-ADMIN_PASSWORD=admin123
-GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL=gemini-3.8-flash
-
-ADMITLY_SLACK_CHANNEL=C0C2KUZLNMD
-ADMITLY_SPREADSHEET_ID=1gN2lX9m-SSpX7q8_72tlR1NotY6RBmMIQ7OE0nFToFA
-FASTN_NUDGE_WEBHOOK=https://webhooks.fastn.dev/prod/triggers/personal_537f9cad7efa339e78b6/webhooks/953464ae-66c7-4105-9e07-8bde695de631
-FASTN_BI_WEBHOOK=https://webhooks.fastn.dev/prod/triggers/personal_537f9cad7efa339e78b6/webhooks/c37b085a-6e73-436b-9989-4fc0589cfe22
-```
-
-If `GEMINI_API_KEY` is left blank, Admitly falls back to a rule-based matcher so the app still runs.
-
-```bash
-python app.py
-```
-
-Visit `http://localhost:5000`.
-
-## Walkthrough for Judges (about 2 minutes)
-
-1. **Reset the demo data** — go to `/seed`, sign in with `admin123`. This loads a sample fellowship program with three applicants.
-2. **Check the applicant side** — open the portal for the first applicant. They're missing a couple of documents. Upload any PDF with a matching note and watch the AI matcher mark it received in real time.
-3. **Trigger the Fastn notification workflow** — back on the admin board, dispatch a nudge. This fires Fastn Workflow 1, which sends a reminder email via Gmail and posts a staff alert to Slack in the same run.
-4. **Check the reporting side** — open the BI view to see completion stats, then confirm Fastn Workflow 2 has kept Google Sheets current, either on its hourly schedule or via a manual retry.
-
-## Submission Checklist
-
-- [x] Built on Fastn: connectors (Gmail, Slack, Google Sheets), triggers (webhooks and an hourly cron), and workflows all live in Fastn workspace `personal_537f9cad7efa339e78b6`
-- [x] Real data movement, end to end: source document → SQLite → Fastn → Gmail / Slack / Google Sheets
-- [x] Public GitHub repository with source and this README
-- [ ] Demo video uploaded to Google Drive with link sharing enabled
-- [ ] At least three screenshots added above
-- [ ] Feedback form submitted by every team member
 
 ---
 
