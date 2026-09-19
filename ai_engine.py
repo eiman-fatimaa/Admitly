@@ -104,28 +104,57 @@ def match_evidence_to_requirement(evidence_text, filename, requirements_list):
     """
     items = [r["item"] for r in requirements_list]
 
-    if not GEMINI_CLIENT:
-        # Fast semantic heuristic fallback for hackathon demos
-        combined = f"{filename} {evidence_text}".lower()
-        for item in items:
-            key_term = item.lower().split()[0]
-            if key_term in combined:
-                return {
-                    "matched_item": item,
-                    "status": "Received",
-                    "confidence": 0.92,
-                    "snippet": f"Verified match from {filename}"
-                }
+    def no_match():
         return {
-            "matched_item": items[0] if items else None,
-            "status": "Received",
-            "confidence": 0.85,
-            "snippet": f"Uploaded file: {filename}"
+            "matched_item": None,
+            "status": "Unclear",
+            "confidence": 0.0,
+            "snippet": f"Uploaded file: {filename}",
         }
+
+    def keyword_match():
+        """Match only when the file name or note contains document-specific evidence."""
+        submission = f"{filename} {evidence_text}".lower()
+        aliases = {
+            "transcript": {"transcript", "marksheet", "grade report", "academic record"},
+            "recommendation": {"recommendation", "reference", "referee", "recommend", "endorsement"},
+            "proposal": {"proposal", "research plan", "project plan", "research outline"},
+            "cv": {"cv", "resume", "curriculum vitae"},
+            "passport": {"passport"},
+            "identity": {"identity", "id card", "national id"},
+        }
+        scores = []
+        for requirement in requirements_list:
+            requirement_text = f"{requirement.get('item', '')} {requirement.get('description', '')}".lower()
+            score = 0
+            for category, terms in aliases.items():
+                if category in requirement_text:
+                    score += sum(1 for term in terms if term in submission)
+            # Also match distinctive terms explicitly shared by the item and submission.
+            item_terms = set(re.findall(r"[a-z]{4,}", requirement.get("item", "").lower()))
+            ignored = {"official", "letter", "document", "application", "required"}
+            score += len((item_terms - ignored) & set(re.findall(r"[a-z]{4,}", submission)))
+            scores.append((score, requirement["item"]))
+
+        best_score = max((score for score, _ in scores), default=0)
+        best_items = [item for score, item in scores if score == best_score]
+        if best_score == 0 or len(best_items) != 1:
+            return no_match()
+        return {
+            "matched_item": best_items[0],
+            "status": "Received",
+            "confidence": min(0.95, 0.7 + (best_score * 0.1)),
+            "snippet": f"Matched from document name or note: {filename}",
+        }
+
+    if not GEMINI_CLIENT:
+        return keyword_match()
 
     prompt = f"""
 Match this applicant submission (filename: '{filename}', text excerpt: '{evidence_text}') to exactly one requirement from this list:
 {json.dumps(items)}
+
+Only choose a requirement when the filename or excerpt gives direct, document-specific evidence. If the submission is generic, ambiguous, or does not identify a listed requirement, return null and status "Unclear". Never guess based on checklist order.
 
 Return ONLY JSON:
 {{
@@ -146,13 +175,10 @@ Return ONLY JSON:
         )
         raw_text = response.text.strip()
         result = json.loads(raw_text)
+        if result.get("matched_item") not in items or result.get("status") != "Received":
+            return no_match()
         result["snippet"] = filename or evidence_text[:60]
         return result
     except Exception as err:
         logger.error(f"Gemini evidence matching failed ({err}).")
-        return {
-            "matched_item": items[0] if items else None,
-            "status": "Received",
-            "confidence": 0.80,
-            "snippet": f"File: {filename}"
-        }
+        return keyword_match()

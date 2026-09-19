@@ -790,7 +790,8 @@ def applicant_upload_evidence(token):
     )
 
     matched_item = match_result.get("matched_item")
-    if matched_item:
+    confidence = match_result.get("confidence", 0)
+    if matched_item and match_result.get("status") == "Received" and confidence >= 0.7:
         models.update_applicant_status_by_item(
             email=data["applicant"]["email"],
             requirement_item_name=matched_item,
@@ -799,7 +800,7 @@ def applicant_upload_evidence(token):
         )
         flash(f"File '{filename}' received! Matched requirement: '{matched_item}' (status updated to Received).", "success")
     else:
-        flash(f"File '{filename}' uploaded successfully, but could not be matched automatically. Flagged for staff review.", "error")
+        flash(f"File '{filename}' uploaded successfully, but could not be matched confidently. It was not assigned to a requirement and is flagged for staff review.", "error")
 
     return redirect(f"/applicant/{token}")
 
