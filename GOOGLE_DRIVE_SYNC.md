@@ -7,7 +7,7 @@ Admitly keeps manual upload as the default submission path. Google Drive discove
 Set these values in the deployed service:
 
 ```env
-FASTN_DRIVE_SYNC_WEBHOOK=<Fastn applicant Drive scan webhook>
+FASTN_DRIVE_SYNC_WEBHOOK=<optional Fastn applicant Drive scan webhook override>
 DRIVE_SYNC_CALLBACK_SECRET=<long random shared secret>
 ```
 

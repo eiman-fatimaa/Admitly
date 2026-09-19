@@ -20,7 +20,14 @@ FASTN_BI_WEBHOOK = os.environ.get(
     "FASTN_BI_WEBHOOK",
     "https://webhooks.fastn.dev/prod/triggers/personal_537f9cad7efa339e78b6/webhooks/c37b085a-6e73-436b-9989-4fc0589cfe22",
 )
-FASTN_DRIVE_SYNC_WEBHOOK = os.environ.get("FASTN_DRIVE_SYNC_WEBHOOK", "").strip()
+DEFAULT_FASTN_DRIVE_SYNC_WEBHOOK = (
+    "https://webhooks.fastn.dev/prod/triggers/personal_537f9cad7efa339e78b6/"
+    "webhooks/953464ae-66c7-4105-9e07-8bde695de631"
+)
+FASTN_DRIVE_SYNC_WEBHOOK = (
+    os.environ.get("FASTN_DRIVE_SYNC_WEBHOOK", DEFAULT_FASTN_DRIVE_SYNC_WEBHOOK).strip()
+    or DEFAULT_FASTN_DRIVE_SYNC_WEBHOOK
+)
 
 
 def _response_data(response):
@@ -102,14 +109,8 @@ def dispatch_applicant_welcome(applicant_id, applicant_name, applicant_email, pr
     )
 
 
-def start_applicant_drive_sync(applicant_id, applicant_email, requirements, callback_url):
+def dispatch_drive_sync(applicant_id, applicant_email, requirements, callback_url):
     """Ask Fastn to scan the Drive account connected by this applicant."""
-    if not FASTN_DRIVE_SYNC_WEBHOOK:
-        return {
-            "success": False,
-            "error": "Google Drive sync is not configured. Add FASTN_DRIVE_SYNC_WEBHOOK.",
-        }
-
     payload = {
         "applicant_id": str(applicant_id),
         "applicant_email": applicant_email,
@@ -128,6 +129,10 @@ def start_applicant_drive_sync(applicant_id, applicant_email, requirements, call
     except requests.exceptions.RequestException as error:
         logger.error("Failed to start Fastn Google Drive sync: %s", error)
         return {"success": False, "error": str(error)}
+
+
+# Backwards-compatible alias for callers using the initial feature-branch name.
+start_applicant_drive_sync = dispatch_drive_sync
 
 
 def export_bi_summary(spreadsheet_id, institution_id="inst_nust_01", programs_summary=None, sheet_range="Summary!A1"):

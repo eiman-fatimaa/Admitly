@@ -860,7 +860,7 @@ def applicant_drive_sync(token):
         {"item": item["item"], "description": item["description"]}
         for item in data["checklist"] if item["status"] != "Received"
     ]
-    delivery = fastn_client.start_applicant_drive_sync(
+    delivery = fastn_client.dispatch_drive_sync(
         applicant_id=data["applicant"]["id"],
         applicant_email=data["applicant"]["email"],
         requirements=requirements,
