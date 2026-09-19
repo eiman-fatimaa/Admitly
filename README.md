@@ -6,6 +6,8 @@ A requirement-tracking and notification orchestration platform for any organizat
 Built for the Fastn Hackathon at NUST SEECS, September 18–19, 2026.
 
 **Live at: [https://admitly.onrender.com/](https://admitly-qsa2.onrender.com)**
+
+scroll down to find demo video, screenshots and document brief
 ---
 
 ## The Problem
@@ -13,6 +15,7 @@ Built for the Fastn Hackathon at NUST SEECS, September 18–19, 2026.
 Universities, financial aid offices, and scholarship or research grant programs all run the same process every cycle: define what documents an applicant needs, collect them from a large pool of people, and track who's done and who isn't before a hard deadline. A large share of applications stall out for a completely avoidable reason — someone missed one form and nobody caught it in time.
 
 Today that tracking almost always lives in a spreadsheet, and the follow-up almost always means a coordinator manually writing the same reminder email to dozens of applicants, separately pinging the review team on Slack about who's still short, and separately updating a report for the department head or the funding body. It doesn't scale past a small cohort, and it breaks down exactly when volume is highest — the week before a deadline, across every review cycle a financial aid or grants office runs in a year.
+
 
 ## What Admitly Does
 
@@ -24,6 +27,15 @@ Admitly is a requirement-tracking and applicant-communication platform built for
 4. **Multi-channel orchestration, handled by Fastn.** This is the part that actually solves the coordination problem for a financial aid or grants team, and it's entirely built on the Fastn platform rather than hand-rolled integration code. See below.
 
 Because the data model separates programs, requirements, and applicants cleanly, one Admitly deployment can serve a university's entire aid office — undergraduate scholarships, graduate fellowships, and externally funded grants — as separate programs with their own requirements, applicants, and notification destinations, rather than needing a separate tool per program.
+
+## Live Demo
+
+| | |
+|---|---|
+| **Live app** | [https://admitly-qsa2.onrender.com/admin/programs] |
+| **Admin login** | Username: `admin` (any value works) · Password: `admin123` |
+| **Demo video** | [https://drive.google.com/file/d/1znt4okdTUdfDR4VYjencvKzw3HVe74JQ/view?usp=drive_link] |
+| **Document Brief** | [https://docs.google.com/document/d/1YVRFlFVTnYPVsoUdE3yUrVvvy0EZO2_9QXGobO1DIRg/edit?usp=drive_link] |
 
 ## How the System Is Connected
 
@@ -100,14 +112,6 @@ The buyer is the office coordinating the program — a financial aid director, a
 
 - **Team name:** Rotten Figs
 - **Members:** Eiman Fatima, Tatheer Aima Naqvi
-
-## Live Demo
-
-| | |
-|---|---|
-| **Live app** | https://admitly.onrender.com |
-| **Admin login** | Username: `admin` (any value works) · Password: `admin123` |
-| **Demo video** | [Add Google Drive link here — sharing set to "anyone with the link"] |
 
 ## Screenshots
 
