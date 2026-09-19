@@ -28,7 +28,7 @@ We used the **Fastn Platform Agent** to create, test, and publish all cloud inte
 | **Workflow 1 Webhook Trigger** | Inbound Webhook (`POST`) | `https://webhooks.fastn.dev/prod/triggers/personal_537f9cad7efa339e78b6/webhooks/953464ae-66c7-4105-9e07-8bde695de631` | Endpoint your backend calls when an applicant has missing items near deadline. |
 | **Workflow 2: Institution BI & Funnel Export** | Workflow | `wf_98ce0494c1fd` | Computes program completion percentages and appends clean summary rows to Google Sheets. |
 | **Workflow 2 Scheduled Trigger** | Cron Schedule | `0 * * * *` (Hourly) | Automated background sync of application completion analytics. |
-| **Workflow 2 On-Demand Webhook** | Inbound Webhook (`POST`) | `https://webhooks.fastn.dev/prod/triggers/personal_537f9cad7efa339e78b6/webhooks/c37b085a-6e73-436b-9989-4fc0589cfe22` | Endpoint triggered when staff clicks "Export Now" on the dashboard. |
+| **Workflow 2 On-Demand Webhook** | Inbound Webhook (`POST`) | `https://webhooks.fastn.dev/prod/triggers/personal_537f9cad7efa339e78b6/webhooks/c37b085a-6e73-436b-9989-4fc0589cfe22` | Endpoint triggered automatically during staff dispatch and manually only to retry a failed export. |
 | **Widget 1: Applicant Notification Hub** | Embed Widget | `wgt_d2d615ad90d2` | Embedded on applicant portal for self-serve Gmail/Slack channel setup (Track 03 compliant). |
 | **Widget 2: Institution BI Export Hub** | Embed Widget | `wgt_aabbd2eabb93` | Embedded on admin dashboard for one-click Google Sheets OAuth connection (Track 04 compliant). |
 
@@ -73,7 +73,7 @@ rm -rf sources alert.py config.py extractor.py main.py notion_sync.py seed_notio
    - "Dispatch Urgent Nudges" button triggering Fastn Workflow 1.
 3. **Screen 3: BI & Reporting Hub (`/admin/reporting`)**
    - Shows live completion percentages per program.
-   - Embeds Fastn's Google Sheets connector card with an "Export Now" button triggering Fastn Workflow 2.
+   - Embeds Fastn's Google Sheets connector card and provides a retry action for failed exports; normal dispatches trigger Fastn Workflow 2 automatically.
 4. **Screen 4: Applicant Status Page (`/applicant/<token>`)**
    - Passwordless personal portal showing the applicant's checklist items and deadline countdown.
    - Document upload simulator with real-time AI matching that flips items to **Received**.
@@ -106,7 +106,7 @@ Open **`http://localhost:5000/seed`** in your browser to seed **Mitacs Global Fe
 - **0:25–0:55 (Applicant Experience):** Open Jane Doe's portal link (`/applicant/<token>`). Show her checklist with missing documents. Click into Notification Settings to show Fastn's channel hub where she opts into Gmail alerts.
 - **0:55–1:20 (Fastn Nudge Trigger):** Return to the Admin Board. Click **"Fastn: Dispatch Urgent Nudges"**. Show that Fastn Workflow 1 triggered a Gmail/Slack alert detailing Jane's missing items.
 - **1:20–1:40 (AI Evidence Matching):** On Jane's portal, upload `transcript_mitacs.pdf`. The AI Evidence Matcher confirms the match, and the badge instantly flips from **Missing (Red)** to **Received (Green)**.
-- **1:40–2:00 (Google Sheets BI Export):** Switch to `/admin/reporting`. Click **"Export Now"**. Fastn Workflow 2 appends live summary metrics to the foundation's Google Sheet. Conclude: *"Every notification and every export ran through Fastn's embedded integration layer."*
+- **1:40–2:00 (Google Sheets BI Export):** Show `/admin/reporting` after dispatch. Fastn Workflow 2 has already appended live summary metrics to the foundation's Google Sheet; use **"Retry Export"** only if needed. Conclude: *"Every notification and every export ran through Fastn's embedded integration layer."*
 
 ---
 

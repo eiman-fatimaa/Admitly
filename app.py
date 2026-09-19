@@ -463,14 +463,14 @@ def admin_reporting():
 
             <!-- EXPORT ACTION FORM -->
             <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-              <h3 class="font-bold text-base text-slate-900 mb-2">Export to Google Sheets via Fastn</h3>
-              <p class="text-xs text-slate-500 mb-4">The Fastn BI workflow runs on an automated hourly cron schedule, or you can trigger an on-demand sync now.</p>
+              <h3 class="font-bold text-base text-slate-900 mb-2">Google Sheets Export via Fastn</h3>
+              <p class="text-xs text-slate-500 mb-4">Sheets update automatically when staff dispatch urgent nudges. Use this only to retry an export after a Fastn or Google Sheets failure.</p>
 
               {% if spreadsheet_id %}
                 <form action="/admin/reporting/export" method="POST" class="flex flex-col sm:flex-row gap-3">
                   <div class="flex-1 text-sm px-3.5 py-2 border rounded-lg bg-slate-50 text-slate-600 truncate">Configured destination: {{ spreadsheet_id }}</div>
                   <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm px-5 py-2 rounded-lg flex items-center justify-center">
-                    <i class="fa-solid fa-file-excel mr-2"></i>Export Now
+                    <i class="fa-solid fa-rotate-right mr-2"></i>Retry Export
                   </button>
                 </form>
               {% else %}
