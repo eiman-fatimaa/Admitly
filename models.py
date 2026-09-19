@@ -267,7 +267,7 @@ def get_urgent_gaps(program_id=None, db_path=DB_FILE):
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT a.id as applicant_id, a.name as applicant_name, a.email,
+        SELECT a.id as applicant_id, a.name as applicant_name, a.email, a.invite_token,
                p.name as program_name, p.deadline as program_deadline,
                GROUP_CONCAT(r.item, '||') as missing_items_str
         FROM applicants a
@@ -286,6 +286,7 @@ def get_urgent_gaps(program_id=None, db_path=DB_FILE):
             "applicant_id": str(row["applicant_id"]),
             "applicant_name": row["applicant_name"],
             "email": row["email"],
+            "invite_token": row["invite_token"],
             "program_name": row["program_name"],
             "missing_items": missing_list,
             "deadline": row["program_deadline"],

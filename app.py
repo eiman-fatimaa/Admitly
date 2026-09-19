@@ -432,12 +432,15 @@ def admin_dispatch_urgent_nudges(program_id):
     notification_jobs = []
 
     for item in urgent_applicants:
+        portal_path = url_for("applicant_portal", token=item["invite_token"])
+        portal_url = f"{_public_app_url()}{portal_path}"
         common = {
             "applicant_id": item["applicant_id"],
             "applicant_name": item["applicant_name"],
             "program_name": item["program_name"],
             "missing_items": item["missing_items"],
             "deadline": item["deadline"],
+            "portal_url": portal_url,
         }
         notification_jobs.append({**common, "channel": "gmail", "destination": {"email_address": item["email"]}})
         if SLACK_ALERT_CHANNEL:
