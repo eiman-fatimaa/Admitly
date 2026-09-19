@@ -466,12 +466,16 @@ def admin_reporting():
               <h3 class="font-bold text-base text-slate-900 mb-2">Export to Google Sheets via Fastn</h3>
               <p class="text-xs text-slate-500 mb-4">The Fastn BI workflow runs on an automated hourly cron schedule, or you can trigger an on-demand sync now.</p>
 
-              <form action="/admin/reporting/export" method="POST" class="flex flex-col sm:flex-row gap-3">
-                <input type="text" name="spreadsheet_id" required value="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms" placeholder="Google Spreadsheet ID" class="flex-1 text-sm px-3.5 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
-                <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm px-5 py-2 rounded-lg flex items-center justify-center">
-                  <i class="fa-solid fa-file-excel mr-2"></i>Export Now
-                </button>
-              </form>
+              {% if spreadsheet_id %}
+                <form action="/admin/reporting/export" method="POST" class="flex flex-col sm:flex-row gap-3">
+                  <div class="flex-1 text-sm px-3.5 py-2 border rounded-lg bg-slate-50 text-slate-600 truncate">Configured destination: {{ spreadsheet_id }}</div>
+                  <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm px-5 py-2 rounded-lg flex items-center justify-center">
+                    <i class="fa-solid fa-file-excel mr-2"></i>Export Now
+                  </button>
+                </form>
+              {% else %}
+                <p class="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-3">Set <code>ADMITLY_SPREADSHEET_ID</code> in .env or Render Environment before exporting.</p>
+              {% endif %}
             </div>
           </div>
 
@@ -505,13 +509,16 @@ def admin_reporting():
     </body>
     </html>
     """
-    return render_template_string(html, stats=bi_stats, title="Reporting & BI Export")
+    return render_template_string(html, stats=bi_stats, spreadsheet_id=SPREADSHEET_ID, title="Reporting & BI Export")
 
 
 @app.route("/admin/reporting/export", methods=["POST"])
 def admin_export_sheets():
     """Calls Fastn Workflow 2 via Webhook"""
-    spreadsheet_id = request.form.get("spreadsheet_id", "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms")
+    spreadsheet_id = SPREADSHEET_ID
+    if not spreadsheet_id:
+        flash("Google Sheets export is not configured. Set ADMITLY_SPREADSHEET_ID in .env or Render Environment.", "error")
+        return redirect("/admin/reporting")
     bi_stats = models.get_bi_summary()
 
     res = fastn_client.export_bi_summary(
