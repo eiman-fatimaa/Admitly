@@ -425,6 +425,11 @@ def _public_app_url():
     return request.host_url.rstrip("/")
 
 
+def _deadline_with_portal_link(deadline, portal_url):
+    """Keep invite links visible with Fastn templates that only render deadline."""
+    return f"{deadline}\n\nApplicant portal: {portal_url}"
+
+
 @app.route("/admin/programs/<int:program_id>/nudge-urgent", methods=["POST"])
 def admin_dispatch_urgent_nudges(program_id):
     """Fan out urgent updates to Gmail, Slack, and the Fastn BI export."""
@@ -439,7 +444,7 @@ def admin_dispatch_urgent_nudges(program_id):
             "applicant_name": item["applicant_name"],
             "program_name": item["program_name"],
             "missing_items": item["missing_items"],
-            "deadline": item["deadline"],
+            "deadline": _deadline_with_portal_link(item["deadline"], portal_url),
             "portal_url": portal_url,
         }
         notification_jobs.append({**common, "channel": "gmail", "destination": {"email_address": item["email"]}})

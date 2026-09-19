@@ -90,7 +90,10 @@ def dispatch_applicant_welcome(applicant_id, applicant_name, applicant_email, pr
         applicant_name=applicant_name,
         program_name=program_name,
         missing_items=requirements,
-        deadline=deadline,
+        # The current Fastn Gmail template renders `deadline`; include the
+        # portal link there as a backwards-compatible fallback while also
+        # sending the dedicated portal_url field for updated templates.
+        deadline=f"{deadline}\n\nApplicant portal: {portal_url}",
         channel="gmail",
         destination={"email_address": applicant_email},
         portal_url=portal_url,
