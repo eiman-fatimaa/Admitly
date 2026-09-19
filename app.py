@@ -18,6 +18,8 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "admitly-hackathon-2026-secret")
 SLACK_ALERT_CHANNEL = os.environ.get("ADMITLY_SLACK_CHANNEL", "")
 SPREADSHEET_ID = os.environ.get("ADMITLY_SPREADSHEET_ID", "")
+# Set this in production so emailed invite links never point at an internal host.
+PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL", "").rstrip("/")
 
 # Fastn Embed Widget IDs
 WIDGET_APPLICANT_NOTIFICATIONS = "wgt_d2d615ad90d2"
@@ -362,13 +364,19 @@ def admin_program_board(program_id):
 
 @app.route("/admin/programs/<int:program_id>/applicants", methods=["POST"])
 def admin_add_applicant(program_id):
-    name = request.form.get("name")
-    email = request.form.get("email")
-    channel = "gmail"
-    destination = {"email_address": email}
+    name = (request.form.get("name") or "").strip()
+    email = (request.form.get("email") or "").strip().lower()
+    if not name or not email:
+        flash("Applicant name and email are required.", "error")
+        return redirect(f"/admin/programs/{program_id}")
 
     # Create the applicant and their password-free personal checklist link.
-    result = models.add_applicant(program_id, name, email, channel, email)
+    try:
+        result = models.add_applicant(program_id, name, email, "gmail", email)
+    except Exception as error:
+        # SQLite raises an integrity error when this email has already been invited.
+        flash(f"Could not add {email}: {error}", "error")
+        return redirect(f"/admin/programs/{program_id}")
     invite_token = result["invite_token"]
     applicant_id = result["applicant_id"]
 
@@ -376,17 +384,18 @@ def admin_add_applicant(program_id):
     program_name = board["program"]["name"]
     deadline = board["program"]["deadline"]
     requirements = [requirement["item"] for requirement in board["requirements"]]
-    portal_url = request.host_url.rstrip("/") + url_for("applicant_portal", token=invite_token)
+    portal_path = url_for("applicant_portal", token=invite_token)
+    portal_url = f"{PUBLIC_APP_URL}{portal_path}" if PUBLIC_APP_URL else request.host_url.rstrip("/") + portal_path
 
     # Send the welcome message immediately through the Gmail Fastn workflow.
-    delivery = fastn_client.dispatch_applicant_nudge(
+    delivery = fastn_client.dispatch_applicant_welcome(
         applicant_id=applicant_id,
         applicant_name=name,
+        applicant_email=email,
         program_name=program_name,
-        missing_items=requirements,
-        deadline=f"{deadline}. Access your personal checklist portal here: {portal_url}",
-        channel=channel,
-        destination=destination,
+        requirements=requirements,
+        deadline=deadline,
+        portal_url=portal_url,
     )
 
     if delivery.get("success"):
