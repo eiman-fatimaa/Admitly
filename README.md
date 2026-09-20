@@ -29,7 +29,7 @@ Because the data model separates programs, requirements, and applicants cleanly,
 
 ## Live Demo
 
-[![Demo Video](https://youtu.be/9skp8HRQ8rM?si=uCmCO8HmaL1tFdVp)](https://youtu.be/9skp8HRQ8rM?si=uCmCO8HmaL1tFdVp)
+<iframe width="560" height="315" src="https://www.youtube.com/watch?v=9skp8HRQ8rM" title="Video Demo" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 | | |
 |---|---|
