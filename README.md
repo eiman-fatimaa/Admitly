@@ -29,11 +29,13 @@ Because the data model separates programs, requirements, and applicants cleanly,
 
 ## Live Demo
 
+<iframe width="560" height="315" src="https://www.youtube.com/embed/9skp8HRQ8rM?si=TLbVCxE3tSA6OwUG" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+
 | | |
 |---|---|
 | **Live app** | [https://admitly-qsa2.onrender.com/admin/programs] |
 | **Admin login** | Username: `admin` (any value works) · Password: `admin123` |
-| **Demo video** | [https://drive.google.com/file/d/1znt4okdTUdfDR4VYjencvKzw3HVe74JQ/view?usp=drive_link] |
+| **Demo video** | [https://youtu.be/9skp8HRQ8rM?si=uCmCO8HmaL1tFdVp] |
 | **Document Brief** | [https://docs.google.com/document/d/1DnZJKUJNAfp3MVroqqE4HId7GIu5EOegZ39j7rdmS9M/edit?usp=sharing] |
 
 ## How the System Is Connected
