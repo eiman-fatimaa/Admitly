@@ -29,7 +29,7 @@ Because the data model separates programs, requirements, and applicants cleanly,
 
 ## Live Demo
 
-[![Demo Video/ Walkthrough](https://youtube.com/)](https://www.youtube.com/watch?v=9skp8HRQ8rM)
+[![Admitly Demo Video][(https://github.com/user-attachments/assets/83392917-b7a7-4b24-8a60-2b600736c044)](https://www.youtube.com/watch?v=9skp8HRQ8rM)
 
 | | |
 |---|---|
