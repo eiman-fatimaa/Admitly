@@ -7,7 +7,7 @@ Built for the Fastn Hackathon at NUST SEECS, September 18–19, 2026.
 
 **Live at: [https://admitly.onrender.com/](https://admitly-qsa2.onrender.com)**
 ---
-scroll down to find demo video, screenshots and document brief
+scroll down to find demo video link, screenshots and document brief
 
 ## The Problem
 
@@ -28,8 +28,6 @@ Admitly is a requirement-tracking and applicant-communication platform built for
 Because the data model separates programs, requirements, and applicants cleanly, one Admitly deployment can serve a university's entire aid office — undergraduate scholarships, graduate fellowships, and externally funded grants — as separate programs with their own requirements, applicants, and notification destinations, rather than needing a separate tool per program.
 
 ## Live Demo
-
-[![Admitly Demo Video][(https://github.com/user-attachments/assets/83392917-b7a7-4b24-8a60-2b600736c044)](https://www.youtube.com/watch?v=9skp8HRQ8rM)
 
 | | |
 |---|---|
