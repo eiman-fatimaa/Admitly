@@ -3,8 +3,6 @@
 
 A requirement-tracking and notification orchestration platform for any organization that has to collect documents from a large group of people, on a deadline, without losing track of who's missing what.
 
-Built for the Fastn Hackathon at NUST SEECS, September 18–19, 2026.
-
 **Live at: [https://admitly.onrender.com/](https://admitly-qsa2.onrender.com)**
 ---
 scroll down to find demo video link, screenshots and document brief
