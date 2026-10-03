@@ -1,7 +1,9 @@
 # Admitly
 
 **Live at: [Admitly Live](https://admitly-qsa2.onrender.com)**
-**Demo Video** : [See 3 min Demo video](https://youtu.be/9skp8HRQ8rM?si=uCmCO8HmaL1tFdVp)
+
+**Demo Video : [See 3 min Demo video](https://youtu.be/9skp8HRQ8rM?si=uCmCO8HmaL1tFdVp)**
+
 <img width="1024" height="559" alt="image" src="https://github.com/user-attachments/assets/f00400cd-1e2f-4930-a6d5-d0f169df0953" />
 
 A requirement-tracking and notification orchestration platform for any organization that has to collect documents from a large group of people, on a deadline, without losing track of who's missing what.
